@@ -170,18 +170,19 @@ function wireSelectionControls() {
 
       try {
         if (api?.tabs?.create) {
-          // Try discarded
-          let tab;
-          try {
-            tab = await api.tabs.create({ url, active: false, discarded: true });
-          } catch {
-            // Fallback: create inactive, then discard it
-            tab = await api.tabs.create({ url, active: false });
-            if (api.tabs.discard) {
-              await api.tabs.discard(tab.id).catch(() => {});
-            }
-          }
-          // Spacing between tabs
+          
+// Open as deferred (background about:blank; loads on focus)
+await new Promise((resolve, reject) => {
+  const runtime = (typeof browser !== "undefined" ? browser : chrome).runtime;
+  runtime.sendMessage({ type: 'OPEN_DEFERRED', url }, (res) => {
+    const err = (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.lastError) ? chrome.runtime.lastError : null;
+    if (err) return reject(err);
+    if (!res || !res.ok) return reject(res && res.error ? new Error(res.error) : new Error("OPEN_DEFERRED failed"));
+    resolve();
+  });
+});
+// Spacing between tabs
+
           await new Promise(r => setTimeout(r, 60));
         } else {
           // Last resort: open immediately
