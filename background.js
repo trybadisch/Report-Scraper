@@ -1,5 +1,73 @@
 const api = typeof browser !== "undefined" ? browser : chrome;
 
+// Chrome-specific deferred tab opener (no preload)
+async function _getDeferredMap() {
+  const store = (api.storage && api.storage.session) ? api.storage.session : (api.storage && api.storage.local);
+  const got = store ? await store.get("deferredTabs") : {};
+  return (got && got.deferredTabs) || {};
+}
+async function _setDeferredMap(map) {
+  const store = (api.storage && api.storage.session) ? api.storage.session : (api.storage && api.storage.local);
+  if (store && store.set) await store.set({ deferredTabs: map });
+}
+async function _rememberDeferred(tabId, url) {
+  const map = await _getDeferredMap();
+  map[tabId] = url;
+  await _setDeferredMap(map);
+}
+async function _takeDeferred(tabId) {
+  const map = await _getDeferredMap();
+  const url = map[tabId];
+  if (url) { delete map[tabId]; await _setDeferredMap(map); }
+  return url;
+}
+function openDeferred(url) {
+  return new Promise((resolve, reject) => {
+    try {
+      api.tabs.create({ url: "about:blank", active: false }, (tab) => {
+        const err = api.runtime && api.runtime.lastError;
+        if (err) return reject(err);
+        _rememberDeferred(tab.id, url).then(() => resolve(tab.id)).catch(reject);
+      });
+    } catch (e) { reject(e); }
+  });
+}
+if (api.tabs && api.tabs.onActivated && api.tabs.onActivated.addListener) {
+  api.tabs.onActivated.addListener(async ({ tabId }) => {
+    try {
+      const url = await _takeDeferred(tabId);
+      if (url) {
+        await new Promise((resolve, reject) => {
+          api.tabs.update(tabId, { url }, () => {
+            const err = api.runtime && api.runtime.lastError;
+            if (err) reject(err); else resolve();
+          });
+        });
+      }
+    } catch (e) { console.warn("Deferred navigation failed:", e); }
+  });
+}
+if (api.tabs && api.tabs.onRemoved && api.tabs.onRemoved.addListener) {
+  api.tabs.onRemoved.addListener(async (tabId) => {
+    const map = await _getDeferredMap();
+    if (map[tabId]) { delete map[tabId]; await _setDeferredMap(map); }
+  });
+}
+api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg && msg.type === "OPEN_DEFERRED" && msg.url) {
+    (async () => {
+      try {
+        const tabId = await openDeferred(msg.url);
+        sendResponse({ ok: true, tabId });
+      } catch (e) {
+        sendResponse({ ok: false, error: (e && e.message) || String(e) });
+      }
+    })();
+    return true;
+  }
+});
+// End Chrome-specific tab opener
+
 // Track the temporary H1 tab
 let tempH1TabId = null;
 
