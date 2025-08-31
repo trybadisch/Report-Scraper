@@ -66,7 +66,7 @@ api.runtime.onMessage.addListener(async (msg, sender) => {
     await api.tabs.sendMessage(tabId, {
       type: "START_SCRAPE",
       reportIds,
-      batchSize: 5,
+      batchSize: 10,
       ...templates
     }).catch(() => {
       // Retry if content script not ready
@@ -74,7 +74,7 @@ api.runtime.onMessage.addListener(async (msg, sender) => {
         api.tabs.sendMessage(tabId, {
           type: "START_SCRAPE",
           reportIds,
-          batchSize: 5,
+          batchSize: 10,
           ...templates
         }).catch(err => console.error("Failed to reach content script:", err));
       }, 300);
