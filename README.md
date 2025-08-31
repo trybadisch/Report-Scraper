@@ -19,6 +19,15 @@ To do so, 2 queries are sent to HackerOne's GraphQL endpoint for each entered re
 - Last Action taken, its author and date
 - Last Message in timeline, its author and date
 
-After reviewing each report's summary, relevant reports can be marked in order to open them in new tabs, simultaneously. These tabs won't be loaded until focused, to avoid H1's rate limit issues. The scraping itself is done in batches of 5 reports, for the same reason.
+After reviewing each report's summary, relevant reports can be marked in order to open them in new tabs, simultaneously. These tabs won't be loaded until focused, to avoid H1's rate limit issues. The scraping itself is done in batches of 10 reports, for the same reason.
 
 Non-public reports and reports from private programs will be queried if an active H1 session exists in the current browsing context.
+
+## Changelog
+
+### Version 1.3
+- Increased batch size to 10.
+- Added an exclusion filter based on Last Action taken and its author.
+
+### Version 1.2
+- Removed tabs permission.
