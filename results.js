@@ -93,6 +93,12 @@ function render(rows) {
         <button id="expandAll" class="btn">Expand all</button>
         <button id="collapseAll" class="btn">Collapse all</button>
       </div>
+      
+
+      <div class="filters-wrap">
+        <div class="filters-header">Exclude from Results:</div>
+        <div id="neg-filters" class="filters-rows"></div>
+      </div>
 
       <table id="results-table">
         <thead>
@@ -117,6 +123,7 @@ function render(rows) {
   updateTable(rows);
   wireSelectionControls();
   wireExpandCollapseControls();
+  setupNegativeFiltersUI();
 }
 
 function rowCheckbox(reportId) {
@@ -328,14 +335,139 @@ function updateTable(rows) {
 async function init() {
   render([]);
   let { scrapeResults = [] } = await api.storage.local.get("scrapeResults");
-  updateTable(scrapeResults);
-
-  api.storage.onChanged.addListener((changes, area) => {
+  refreshFiltersWithNewData(scrapeResults);
+api.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if (changes.scrapeResults) {
-      const rows = changes.scrapeResults.newValue || [];
-      updateTable(rows);
+    if (changes.scrapeResults) { const rows = changes.scrapeResults.newValue || []; refreshFiltersWithNewData(rows); }
+  });
+}
+
+// Negative Filters (Exclude matching rows)
+function getTableEl() { return document.getElementById("results-table"); }
+
+function ensureOriginalRows(rows) {
+  const table = getTableEl();
+  if (table) table._originalRows = Array.isArray(rows) ? rows.slice() : [];
+}
+function currentOriginalRows() {
+  const table = getTableEl();
+  return (table && Array.isArray(table._originalRows)) ? table._originalRows.slice() : [];
+}
+
+function getAllActions(rows) {
+  const set = new Set();
+  (rows || []).forEach(r => { if (r.lastAction && r.lastAction !== "N/A") set.add(r.lastAction); });
+  return Array.from(set).sort((a,b) => formatActionName(a).localeCompare(formatActionName(b)));
+}
+function getAuthorsForAction(action, rows) {
+  const set = new Set();
+  (rows || []).forEach(r => { if (r.lastAction === action && r.lastActionAuthor && r.lastActionAuthor !== "N/A") set.add(r.lastActionAuthor); });
+  return Array.from(set).sort((a,b) => a.localeCompare(b));
+}
+
+function makeFilterRowDOM(idx, actions, selectedAction = "", authors = [], selectedAuthor = "") {
+  const row = document.createElement("div");
+  row.className = "filter-row";
+  row.dataset.index = String(idx);
+  row.innerHTML = `
+    <label>Last Action:</label>
+    <select class="nf-action">
+      <option value="">None</option>
+      ${actions.map(a => `<option value="${esc(a)}"${a===selectedAction?' selected':''}>${esc(formatActionName(a))}</option>`).join("")}
+    </select>
+    <span class="and-token">AND</span>
+    <label>Action Author:</label>
+    <select class="nf-author" ${selectedAction ? "" : "disabled"}>
+      <option value="">None</option>
+      ${authors.map(u => `<option value="${esc(u)}"${u===selectedAuthor?' selected':''}>${esc(u)}</option>`).join("")}
+    </select>
+    <span class="btn-group">
+      <button class="btn btn-primary nf-add" title="Add another exclusion">+</button>
+      <button class="btn btn-primary nf-remove" title="Remove this exclusion">-</button>
+    </span>
+  `;
+  return row;
+}
+
+function readFiltersFromDOM() {
+  return Array.from(document.querySelectorAll(".filter-row")).map(fr => {
+    const action = fr.querySelector(".nf-action")?.value || "";
+    const author = fr.querySelector(".nf-author")?.value || "";
+    return { action, author };
+  });
+}
+
+function applyNegativeFiltersAndRender() {
+  const originals = currentOriginalRows();
+  const filters = readFiltersFromDOM().filter(f => f.action && f.author);
+  if (filters.length === 0) { updateTable(originals); return; }
+  const filtered = originals.filter(r => !filters.some(f => r.lastAction === f.action && r.lastActionAuthor === f.author));
+  updateTable(filtered);
+  const selectAll = document.getElementById('selectAll');
+  if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
+  updateOpenButtonState();
+}
+
+function rebuildAuthorsForRow(fr) {
+  const actionSel = fr.querySelector(".nf-action");
+  const authorSel = fr.querySelector(".nf-author");
+  const chosenAction = actionSel?.value || "";
+  const originals = currentOriginalRows();
+  const authors = chosenAction ? getAuthorsForAction(chosenAction, originals) : [];
+  authorSel.innerHTML = `<option value="">None</option>` + authors.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join("");
+  authorSel.disabled = !chosenAction;
+}
+
+function setupNegativeFiltersUI() {
+  const wrap = document.getElementById("neg-filters");
+  if (!wrap) return;
+  const originals = currentOriginalRows();
+  const actions = getAllActions(originals);
+  wrap.innerHTML = "";
+  wrap.appendChild(makeFilterRowDOM(0, actions));
+  wrap.addEventListener("change", (e) => {
+    const t = e.target;
+    const fr = t.closest(".filter-row");
+    if (!fr) return;
+    if (t.classList.contains("nf-action")) { rebuildAuthorsForRow(fr); }
+    else if (t.classList.contains("nf-author")) { applyNegativeFiltersAndRender(); }
+  });
+  wrap.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    const fr = btn.closest(".filter-row");
+    if (!fr) return;
+    if (btn.classList.contains("nf-add")) {
+      const idx = document.querySelectorAll(".filter-row").length;
+      const actions = getAllActions(currentOriginalRows());
+      fr.after(makeFilterRowDOM(idx, actions));
+      e.preventDefault(); return;
+    }
+    if (btn.classList.contains("nf-remove")) {
+      const rows = Array.from(document.querySelectorAll(".filter-row"));
+      if (rows.length > 1) { fr.remove(); applyNegativeFiltersAndRender(); }
+      else {
+        fr.querySelector(".nf-action").value = "";
+        const u = fr.querySelector(".nf-author"); u.value = ""; u.disabled = true; u.innerHTML = `<option value="">None</option>`;
+        updateTable(currentOriginalRows());
+      }
+      e.preventDefault(); return;
     }
   });
+}
+
+function refreshFiltersWithNewData(rows) {
+  ensureOriginalRows(rows);
+  const wrap = document.getElementById("neg-filters");
+  if (!wrap) return;
+  const prev = readFiltersFromDOM();
+  const actions = getAllActions(rows);
+  wrap.innerHTML = "";
+  const toBuild = prev.length ? prev : [{action:"", author:""}];
+  toBuild.forEach((p,i) => {
+    const authors = p.action ? getAuthorsForAction(p.action, rows) : [];
+    wrap.appendChild(makeFilterRowDOM(i, actions, p.action, authors, p.author));
+  });
+  applyNegativeFiltersAndRender();
 }
 init();
