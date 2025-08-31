@@ -99,7 +99,7 @@ tr:last-child td { border-bottom:none; }
 
 .filter-row {
   display: grid;
-  grid-template-columns: auto 220px auto auto 260px 1fr; /* buttons column will auto-right */
+  grid-template-columns: auto 220px auto auto 260px 1fr;
   align-items: center;
   gap: 4px;
   background: var(--panel);
@@ -120,11 +120,7 @@ tr:last-child td { border-bottom:none; }
 .filter-row select.nf-action { width: 220px; }
 .filter-row select.nf-author { width: 260px; }
 
-.filter-row .btn-group {
-  display:flex;
-  gap:8px;
-  justify-self:end;
-}
+.filter-row .btn-group { display:flex; gap:8px; justify-self:end; }
 .filter-row .btn-primary {
   background: #bd93f9;
   color: #171717;
@@ -138,11 +134,5 @@ tr:last-child td { border-bottom:none; }
 }
 
 /* Compact global message controls */
-.msg-controls { display:flex; justify-content:flex-end; gap:8px; margin:0 0 8px; }
-.msg-controls .btn { padding:6px 10px; font-weight:700; }
-
-.msg-controls { display:flex; justify-content:flex-end; gap:8px; margin:0 0 8px; }
-.msg-controls .btn { padding:6px 10px; font-weight:700; }
-
 .msg-controls { display:flex; justify-content:flex-end; gap:8px; margin:0 0 8px; }
 .msg-controls .btn { padding:6px 10px; font-weight:700; }
