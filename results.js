@@ -4,7 +4,9 @@ function esc(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function formatAbsolute(d) {
@@ -308,17 +310,17 @@ function updateTable(rows) {
 
   tbody.innerHTML = rows.map((r, idx) => makeMainRow(r, idx)).join("");
 
-  tbody.addEventListener("click", (e) => {
-    const btn = e.target.closest("button.show-msg");
-    if (!btn) return;
-    const idx = btn.getAttribute("data-idx");
-    const existing = tbody.querySelector(`tr.msg-row[data-msg-for="${idx}"]`);
-    if (existing) {
-      hideMessageForIndex(idx);
-      return;
-    }
-    showMessageForIndex(idx);
-  });
+  if (!tbody._hasMsgClick) {
+    tbody.addEventListener("click", (e) => {
+      const btn = e.target.closest("button.show-msg");
+      if (!btn) return;
+      const idx = btn.getAttribute("data-idx");
+      const existing = tbody.querySelector(`tr.msg-row[data-msg-for="${idx}"]`);
+      if (existing) { hideMessageForIndex(idx); return; }
+      showMessageForIndex(idx);
+    });
+    tbody._hasMsgClick = true;
+  }
 
   const table = document.getElementById("results-table");
   table._rowsCache = rows;
@@ -343,15 +345,8 @@ api.storage.onChanged.addListener((changes, area) => {
 
 // Negative Filters (Exclude matching rows)
 function getTableEl() { return document.getElementById("results-table"); }
-
-function ensureOriginalRows(rows) {
-  const table = getTableEl();
-  if (table) table._originalRows = Array.isArray(rows) ? rows.slice() : [];
-}
-function currentOriginalRows() {
-  const table = getTableEl();
-  return (table && Array.isArray(table._originalRows)) ? table._originalRows.slice() : [];
-}
+function ensureOriginalRows(rows) { const t = getTableEl(); if (t) t._originalRows = Array.isArray(rows) ? rows.slice() : []; }
+function currentOriginalRows() { const t = getTableEl(); return (t && Array.isArray(t._originalRows)) ? t._originalRows.slice() : []; }
 
 function getAllActions(rows) {
   const set = new Set();
