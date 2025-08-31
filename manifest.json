@@ -9,8 +9,7 @@
   },
   "description": "Scrapes a summary of introduced HackerOne reports including their status, last action, and last message",
   "permissions": [
-    "storage",
-    "tabs"
+    "storage"
   ],
   "host_permissions": [
     "https://hackerone.com/*"
